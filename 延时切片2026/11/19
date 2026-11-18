@@ -1,0 +1,2344 @@
+# ============================================
+# 延时切片 v2026.11.19 一键部署脚本
+# 毕业版：仅修改版本名称与文案，其余代码 100% 保持 14.3.1 原样
+# ============================================
+$ErrorActionPreference = 'Stop'
+$desktop = [Environment]::GetFolderPath('Desktop')
+if(-not $desktop){ $desktop = "$env:USERPROFILE\Desktop" }
+
+Write-Host "正在下载核心依赖 Mp4Muxer..." -ForegroundColor Yellow
+$muxerUrl = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js"
+try {
+    $muxerJs = (Invoke-WebRequest -Uri $muxerUrl -UseBasicParsing).Content
+} catch {
+    Write-Host "网络请求失败，请检查网络。按任意键退出。" -ForegroundColor Red
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    exit 1
+}
+
+Write-Host "正在生成 延时切片v2026.11.19 单文件版..." -ForegroundColor Green
+$htmlPath = Join-Path $desktop '延时切片v2026.11.19.html'
+
+$html = @'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>延时切片 v2026.11.19</title>
+<style>
+:root {
+  --bg-base: #fbfbfd;
+  --bg-surface: #ffffff;
+  --border-light: #d2d2d7;
+  --text-main: #1d1d1f;
+  --text-sub: #86868b;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --success: #30d158;
+  --danger: #ff453a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg-base); color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+  padding: 0 20px 100px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+/* 顶部全局导航 */
+.top-nav {
+  position: sticky; top: 0; width: 100%; max-width: 900px; z-index: 1000;
+  background: #fbfbfd;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 16px 24px; margin-bottom: 40px;
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+}
+.top-nav .logo { justify-self: start; font-size: 1.2rem; font-weight: 600; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+.top-nav .logo span { font-size: 0.85rem; color: var(--text-sub); font-weight: 400; }
+
+.mode-switch { justify-self: center; display: flex; background: #e8e8ed; padding: 4px; border-radius: 20px; }
+.mode-switch button {
+  border: none; background: transparent; padding: 6px 16px; border-radius: 16px;
+  font-size: 0.9rem; font-weight: 500; color: var(--text-sub); cursor: pointer;
+}
+.mode-switch button.active { background: #fff; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+.nav-links { justify-self: end; display: flex; gap: 20px; }
+.nav-links a { text-decoration: none; color: var(--text-sub); font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+.nav-links a:hover { color: var(--accent); }
+
+/* 容器 */
+.scroll-container { max-width: 900px; width: 100%; }
+#app-matting { max-width: 900px; width: 100%; display: none; }
+
+/* 滚动浮现动画 */
+.reveal { opacity: 0; transform: translateY(40px); transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+.reveal.active { opacity: 1; transform: translateY(0); }
+
+/* 通用卡片样式 */
+.step-section {
+  background: var(--bg-surface); border: 1px solid var(--border-light);
+  border-radius: 24px; padding: 40px; margin-bottom: 40px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+}
+.step-header { display: flex; align-items: center; margin-bottom: 30px; }
+.step-num {
+  background: var(--accent); color: #fff; width: 32px; height: 32px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 600; margin-right: 16px; font-size: 1.1rem;
+}
+.step-title { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.5px; }
+
+/* 通用表单与按钮 */
+.input-row { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.input-row label { font-weight: 500; font-size: 1rem; color: var(--text-main); }
+.input-row input[type=number] {
+  width: 120px; padding: 12px 16px; border-radius: 12px;
+  border: 1px solid var(--border-light); background: var(--bg-base);
+  font-size: 1.1rem; outline: none; color: var(--text-main);
+}
+.input-row input[type=number]:focus { border-color: var(--accent); }
+
+.btn { background: var(--accent); border: none; color: #fff; padding: 14px 28px; border-radius: 30px; font-size: 1rem; font-weight: 500; cursor: pointer; }
+.btn:hover:not(:disabled) { background: var(--accent-hover); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.secondary { background: #e8e8ed; color: var(--text-main); }
+.btn.secondary:hover:not(:disabled) { background: #d2d2d7; }
+.btn.green { background: var(--success); color: #fff; }
+.btn.green:hover:not(:disabled) { background: #28b94c; }
+.btn.red { background: var(--danger); color: #fff; }
+.btn.red:hover:not(:disabled) { background: #d7372d; }
+.btn.small { padding: 8px 20px; font-size: 0.9rem; border-radius: 20px; }
+.btn.tiny { padding: 6px 12px; font-size: 0.8rem; border-radius: 8px; }
+.btn.active { box-shadow: inset 0 0 0 2px var(--accent); background: #f0f8ff; color: var(--accent); }
+
+/* 画质选择器 */
+.preset-btn {
+  flex: 1; min-width: 120px; background: var(--bg-base); border: 2px solid var(--border-light);
+  border-radius: 12px; padding: 16px; cursor: pointer; text-align: center;
+}
+.preset-btn:hover { border-color: #a1a1a6; }
+.preset-btn.selected { border-color: var(--accent); background: rgba(0,113,227,0.05); }
+.preset-btn .plabel { font-size: 1.1rem; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 4px; }
+.preset-btn .pdesc { font-size: 0.85rem; color: var(--text-sub); }
+
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.info-card { background: var(--bg-base); padding: 16px 20px; border-radius: 12px; border: 1px solid var(--border-light); }
+.info-card .k { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 4px; display: block; }
+.info-card .v { font-weight: 600; font-size: 1.05rem; }
+
+.file-input-wrapper { background: var(--bg-base); border: 2px dashed var(--border-light); border-radius: 16px; padding: 40px; text-align: center; margin-bottom: 24px; }
+.file-input-wrapper:hover { border-color: var(--accent); }
+.file-input-wrapper input[type=file] { display: none; }
+.btn-upload { display: inline-block; padding: 14px 32px; background: var(--accent); color: #fff; border-radius: 30px; font-size: 1rem; font-weight: 500; cursor: pointer; }
+.btn-upload:hover { background: var(--accent-hover); }
+
+/* 延时切片专属：缩略图 */
+.preview-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 280px; overflow-y: auto; justify-content: center; padding: 16px; background: var(--bg-base); border-radius: 16px; border: 1px solid var(--border-light); }
+.frame-item { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; cursor: pointer; }
+.frame-item img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.frame-item.focused { border-color: var(--accent); }
+.frame-item.unselected img { opacity: 0.2; }
+.frame-item.unselected .unselected-mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--danger); font-size: 2rem; font-weight: bold; }
+.frame-item .idx { position: absolute; bottom: 2px; right: 4px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 2px 4px; border-radius: 4px; }
+
+/* 延时切片专属：形状卡片 */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.choice-card { background: var(--bg-base); border: 1px solid var(--border-light); border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; position: relative; }
+.choice-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.choice-card.selected { border-color: var(--accent); background: rgba(0, 113, 227, 0.05); }
+.choice-card.selected::after { content: "✓"; position: absolute; top: 10px; right: 12px; color: var(--accent); font-weight: bold; }
+.choice-card .icon { font-size: 2rem; margin-bottom: 12px; display: block; }
+.choice-card .label { font-size: 1rem; font-weight: 600; }
+
+/* 拖拽列表 */
+.combo-item { display: flex; align-items: center; padding: 14px 20px; margin-bottom: 8px; background: var(--bg-base); border: 1px solid var(--border-light); border-radius: 12px; cursor: grab; }
+.combo-item:hover { border-color: #a1a1a6; }
+.combo-item .tag { background: #e8e8ed; color: var(--text-main); padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; margin-right: 12px; font-weight: 600; }
+
+/* ========================================= */
+/* 极简纯白遮罩层（带独立 rAF 进度循环） */
+/* ========================================= */
+#genOverlay { 
+  position: fixed; inset: 0; background: #ffffff; z-index: 999999; 
+  display: none; flex-direction: column; align-items: center; justify-content: center; 
+  pointer-events: all;
+}
+#genOverlay.active { display: flex; }
+
+.overlay-percent { font-size: 64px; font-weight: 700; color: #1d1d1f; line-height: 1; margin-bottom: 24px; font-variant-numeric: tabular-nums; }
+.overlay-bar-bg { width: 400px; max-width: 80vw; height: 4px; background: #e8e8ed; border-radius: 2px; overflow: hidden; margin-bottom: 32px; }
+.overlay-bar-fill { width: 0%; height: 100%; background: #1d1d1f; }
+.overlay-status { font-size: 18px; color: #86868b; text-align: center; line-height: 1.6; }
+.overlay-status strong { color: #1d1d1f; font-weight: 600; }
+
+/* ========================================= */
+/* 抠图工具专属 */
+/* ========================================= */
+#app-matting .note { background: #f5f5f7; color: var(--text-sub); padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px; }
+#app-matting .canvas-wrapper { background: #f5f5f7; border-radius: 16px; padding: 16px; margin: 16px 0; display: flex; justify-content: center; align-items: center; overflow: hidden; border: 1px solid var(--border-light); }
+#app-matting .canvas-wrapper canvas { max-width: 100%; max-height: 480px; display: block; cursor: crosshair; background: #000; border-radius: 8px; touch-action: none; }
+#app-matting .tools { background: #f5f5f7; border-radius: 16px; padding: 16px; display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; border: 1px solid var(--border-light); }
+#app-matting .tools label { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 500; }
+#app-matting input[type=range] { accent-color: var(--accent); width: 120px; }
+#app-matting .divider-v { width: 1px; height: 24px; background: var(--border-light); margin: 0 4px; }
+#app-matting .video-list { background: #f5f5f7; border-radius: 12px; padding: 12px; max-height: 300px; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-light); }
+#app-matting .video-item { background: #fff; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+#app-matting .video-item .num { background: #e8e8ed; color: var(--text-main); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; }
+#app-matting .video-item .name { flex: 1; font-size: 0.9rem; word-break: break-all; }
+#app-matting .video-item .actions { display: flex; gap: 8px; }
+#app-matting select { background: #fff; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 14px; outline: none; font-size: 1rem; color: var(--text-main); width: 100%; margin-bottom: 12px; }
+#app-matting .timeline-box { background: #f5f5f7; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid var(--border-light); }
+#app-matting .timeline-box input { width: 100%; accent-color: var(--accent); }
+#app-matting .timeline-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.85rem; color: var(--text-sub); }
+#app-matting .polygon-hint { background: #fff3cd; color: #856404; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; margin: 12px 0; display: none; }
+#app-matting .polygon-hint.show { display: block; }
+#app-matting .result-box { background: #f5f5f7; border-radius: 16px; padding: 24px; margin-top: 24px; border: 1px solid var(--border-light); }
+#app-matting .result-box video { max-width: 100%; max-height: 300px; border-radius: 8px; display: block; margin: 0 auto 16px; background: #000; }
+#app-matting .info-box { background: #f5f5f7; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; border: 1px solid var(--border-light); }
+#app-matting .info-box .kv { display: flex; justify-content: space-between; padding: 4px 0; }
+#app-matting .info-box .k { color: var(--text-sub); }
+#app-matting .info-box .v { font-weight: 600; color: var(--text-main); }
+#app-matting .folder-box { background: #f5f5f7; border: 1px dashed var(--border-light); border-radius: 16px; padding: 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+#app-matting .folder-box.ready { border-color: var(--success); background: #f0fdf4; }
+#app-matting .folder-box .fname { color: var(--text-main); font-size: 0.95rem; }
+#app-matting .status { font-size: 0.95rem; color: var(--text-sub); margin-bottom: 16px; min-height: 1.4em; }
+#app-matting .progress { margin: 16px 0; height: 6px; background: #e8e8ed; border-radius: 3px; overflow: hidden; display: none; }
+#app-matting .progress-bar { height: 100%; width: 0; background: var(--accent); }
+#app-matting .transparent-note { background: #e8f2ff; color: #0071e3; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; }
+#app-matting .bbox-info { background: #fff3cd; color: #856404; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; display: none; }
+
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.1); border-top-color: var(--text-main); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- 全局悬浮导航 -->
+<div class="top-nav">
+  <div class="logo">🎬 延时切片 <span>v2026.11.19</span></div>
+  
+  <div class="mode-switch">
+    <button id="btn-mode-delay" class="active" onclick="switchMode('delay')">延时切片</button>
+    <button id="btn-mode-matting" onclick="switchMode('matting')">视频抠图</button>
+  </div>
+
+  <div class="nav-links" id="delay-nav-links">
+    <a onclick="scrollToSec(1)">1. 视频</a>
+    <a onclick="scrollToSec(2)">2. 抽帧</a>
+    <a onclick="scrollToSec(3)">3. 形状</a>
+    <a onclick="scrollToSec(4)">4. 生成</a>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 应用 1：延时切片 -->
+<!-- ========================================== -->
+<div class="scroll-container" id="app-delay">
+  <div class="step-section reveal active" id="section1">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">上传视频与参数</div>
+    </div>
+    <div class="file-input-wrapper">
+      <input type="file" id="videoInput" accept="video/*">
+      <label for="videoInput" class="btn-upload">选择视频文件</label>
+    </div>
+    <div id="videoInfoBox" class="info-grid hidden">
+      <div class="info-card"><span class="k">文件名</span><span class="v" id="viName">-</span></div>
+      <div class="info-card"><span class="k">时长</span><span class="v" id="viDuration">-</span></div>
+      <div class="info-card"><span class="k">分辨率</span><span class="v" id="viResolution">-</span></div>
+    </div>
+    <div class="input-row">
+      <label>轨数：</label>
+      <input type="number" id="trackCount" min="2" max="512" value="60">
+      <span style="color:var(--text-sub);font-size:.85rem">最大 512</span>
+    </div>
+    <div class="status" id="status1" style="margin-bottom:16px; color:var(--text-sub);">等待上传视频...</div>
+  </div>
+
+  <div class="step-section reveal" id="section2">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">抽帧与筛选</div>
+    </div>
+    
+    <div id="qualityArea">
+      <div style="font-size:1.1rem; font-weight:600; margin-bottom:16px;">选择画质</div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;" id="qualityRow">
+        <div class="preset-btn" data-quality="1080p"><span class="plabel">1080P</span><span class="pdesc">1920 宽</span></div>
+        <div class="preset-btn" data-quality="2k"><span class="plabel">2K</span><span class="pdesc">2560 宽</span></div>
+        <div class="preset-btn" data-quality="4k"><span class="plabel">4K</span><span class="pdesc">3840 宽</span></div>
+        <div class="preset-btn selected" data-quality="original"><span class="plabel">原画质</span><span class="pdesc">不缩放</span></div>
+      </div>
+      
+      <div class="info-grid">
+        <div class="info-card"><span class="k">源分辨率</span><span class="v" id="qiSource">-</span></div>
+        <div class="info-card"><span class="k">输出分辨率</span><span class="v" id="qiTarget">-</span></div>
+      </div>
+      <button class="btn green" id="startExtractBtn" disabled style="margin-bottom:16px;">开始抽帧</button>
+    </div>
+
+    <div id="extractArea" class="hidden" style="margin-bottom:24px;">
+      <div class="status" id="status2">准备抽帧...</div>
+      <div style="height:4px;background:#e8e8ed;border-radius:2px;overflow:hidden;margin-top:10px;"><div style="height:100%;width:0%;background:var(--accent);" id="progressBar2"></div></div>
+    </div>
+
+    <div id="selectArea" class="hidden">
+      <div class="status" style="margin-bottom:8px;">已抽取 <b id="extractCount">0</b> 帧，点击缩略图可去掉/恢复。</div>
+      <div class="frame-counter" id="frameCounter" style="margin-bottom:16px; font-weight:600; color:var(--accent);">有效帧 0 / 共 0 帧</div>
+      
+      <div style="text-align:center; margin-bottom:16px;">
+        <canvas id="fullPreviewCanvas" style="max-width:100%;max-height:360px;border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);"></canvas>
+        <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem;color:var(--text-sub); padding:0 10px;">
+          <span id="fullPreviewLabel">帧 1 / 0</span>
+          <span id="fullPreviewSelectedTag">已选</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:center;margin-bottom:16px;">
+        <button class="btn secondary small" id="prevFrameBtn">上一帧</button>
+        <button class="btn small" id="toggleSelectBtn">切换保留/去掉</button>
+        <button class="btn secondary small" id="nextFrameBtn">下一帧</button>
+      </div>
+      <input type="range" id="frameSlider" min="0" max="0" value="0" step="1" style="width:100%;accent-color:var(--accent); margin-bottom:16px;">
+
+      <div class="preview-grid" id="framePreviewGrid"></div>
+      <div style="margin-top:24px;">
+        <button class="btn" id="toStep3">确认选帧，前往下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-section reveal" id="section3">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">选择类型与形状</div>
+    </div>
+    <div class="sub-label" style="font-size:1.1rem; font-weight:600; margin-bottom:16px;">大类型（可多选）</div>
+    <div class="choice-grid">
+      <div class="choice-card" data-type="loop"><span class="icon">🔄</span><div class="label">循环类</div></div>
+      <div class="choice-card" data-type="wave"><span class="icon">🌊</span><div class="label">波浪循环</div></div>
+      <div class="choice-card" data-type="expand"><span class="icon">➡️</span><div class="label">展开类</div></div>
+      <div class="choice-card" data-type="waveexpand"><span class="icon">🌊➡️</span><div class="label">波浪展开</div></div>
+    </div>
+    <div class="sub-label" style="font-size:1.1rem; font-weight:600; margin-bottom:16px;">形状（可多选）</div>
+    <div class="choice-grid" id="shapeGrid"></div>
+    
+    <div class="status" id="status3" style="margin-top:20px;"></div>
+  </div>
+
+  <div class="step-section reveal" id="section4">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <div class="step-title">输出设置与生成</div>
+    </div>
+    
+    <div class="info-grid" id="summaryBox"></div>
+
+    <div class="input-row" style="margin-top:24px;">
+      <label>视频时长 (秒)：</label>
+      <input type="number" id="targetDuration" min="0.1" step="0.1" value="2">
+      <span style="color:var(--text-sub);font-size:.85rem">默认 2 秒</span>
+    </div>
+
+    <div class="sub-label" style="font-size:1.1rem; font-weight:600; margin-bottom:16px; margin-top:24px;">任务顺序（可拖拽）</div>
+    <div class="combo-list" id="comboList" style="background:#f5f5f7; border-radius:12px; padding:16px; border:1px solid var(--border-light); margin-bottom:24px;"></div>
+
+    <div class="folder-box" style="background:#f5f5f7; border:1px dashed var(--border-light); border-radius:16px; padding:20px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
+      <div class="fname" id="folderName" style="color:var(--text-sub);">未选择输出文件夹</div>
+      <button class="btn secondary" id="pickFolderBtn">选择文件夹</button>
+    </div>
+
+    <div style="display:flex; gap:16px; align-items:center;">
+      <button class="btn green" id="generateBtn" style="padding:18px 40px; font-size:1.2rem;">开始生成</button>
+      <div class="status" id="status4"></div>
+    </div>
+    
+    <div class="output-list" id="outputList" style="margin-top:24px;"></div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 应用 2：视频抠图工具 -->
+<!-- ========================================== -->
+<div id="app-matting">
+  <div class="step-section reveal active" id="mt_section1">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">上传视频（可多选）</div>
+    </div>
+    <div class="file-input-wrapper">
+      <input type="file" id="mt_videoInput" accept="video/*" multiple>
+      <label for="mt_videoInput" class="btn-upload">选择视频文件</label>
+    </div>
+    <div id="mt_videoListBox" class="hidden">
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.9rem; color:var(--text-sub);">
+        <span>已选视频：<b id="mt_videoCount" style="color:var(--text-main);">0</b> 个</span>
+        <span>用 ↑↓ 调整顺序，✕ 移除</span>
+      </div>
+      <div class="video-list" id="mt_videoList"></div>
+    </div>
+    <div class="status" id="mt_status1">等待上传视频…</div>
+  </div>
+
+  <div class="step-section reveal" id="mt_section2">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">用画笔刷出要保留的区域</div>
+    </div>
+    <div class="note">淡红色覆盖的地方 = 保留，没有红色的地方 = 去掉。遮罩在所有视频上共用。</div>
+
+    <div style="margin-bottom:16px;">
+      <select id="mt_previewSelect"></select>
+    </div>
+
+    <video id="mt_hidden_video" muted playsinline style="display:none;"></video>
+
+    <div class="canvas-wrapper">
+      <canvas id="mt_displayCanvas"></canvas>
+    </div>
+
+    <div class="tools">
+      <div style="display:flex; gap:8px;">
+        <button class="btn active" id="mt_toolFree">自由绘制</button>
+        <button class="btn secondary" id="mt_toolPolygon">多边形</button>
+      </div>
+      <div class="divider-v"></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn active" id="mt_modeDraw">绘制</button>
+        <button class="btn secondary" id="mt_modeErase">擦除</button>
+      </div>
+      <div class="divider-v"></div>
+      <label>画笔大小 <input type="range" id="mt_brushSize" min="5" max="300" value="60"> <span id="mt_brushSizeVal" style="width:28px; text-align:center;">60</span></label>
+    </div>
+
+    <div class="tools">
+      <div style="display:flex; gap:8px;">
+        <button class="btn secondary" id="mt_btnUndo">撤销</button>
+        <button class="btn secondary" id="mt_btnInvert">反转</button>
+        <button class="btn secondary" id="mt_btnClear">清空</button>
+        <button class="btn secondary" id="mt_btnFull">全选</button>
+      </div>
+      <div class="divider-v"></div>
+      <div style="display:flex; gap:8px;" id="mt_polygonActions">
+        <button class="btn green" id="mt_btnPolyConfirm">完成多边形</button>
+        <button class="btn secondary" id="mt_btnPolyCancel">取消</button>
+      </div>
+    </div>
+
+    <div class="polygon-hint" id="mt_polygonHint">多边形模式：依次点击画面上的点，至少 3 个点后点击「完成多边形」。</div>
+
+    <div class="timeline-box">
+      <input type="range" id="mt_timeline" min="0" max="100" step="0.01" value="0">
+      <div class="timeline-time">
+        <span id="mt_currentTime">00:00.00</span>
+        <span id="mt_totalTime">00:00.00</span>
+      </div>
+    </div>
+
+    <div class="status" id="mt_status2">加载第一帧…</div>
+  </div>
+
+  <div class="step-section reveal" id="mt_section3">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">输出设置</div>
+    </div>
+    <div class="info-box" id="mt_summaryBox"></div>
+
+    <div class="tools">
+      <label><input type="checkbox" id="mt_smartCrop"> 智能裁切（裁到刚好包住内容）</label>
+      <div class="divider-v"></div>
+      <label><input type="checkbox" id="mt_transparentBg"> 透明背景</label>
+      <div class="divider-v"></div>
+      <label>纯色背景 <input type="color" id="mt_bgColor" value="#000000" style="width:40px; height:32px; border:1px solid var(--border-light); border-radius:8px; cursor:pointer;"></label>
+    </div>
+
+    <div class="transparent-note" id="mt_formatNote">
+      当前输出格式：<b>MP4</b>（原尺寸，形状外填底色）
+    </div>
+    <div class="bbox-info" id="mt_bboxInfo"></div>
+
+    <div class="folder-box" id="mt_folderBox">
+      <div class="fname" id="mt_folderName">未选择保存位置（可选）</div>
+      <button class="btn secondary" id="mt_pickFolderBtn">选择文件夹</button>
+    </div>
+
+    <div style="display:flex; gap:16px; align-items:center; margin-top:20px;">
+      <button class="btn green" id="mt_generateBtn" style="padding:18px 40px; font-size:1.2rem;">开始批量抠图</button>
+      <div class="status" id="mt_status4"></div>
+    </div>
+
+    <div class="result-box hidden" id="mt_resultBox">
+      <h3 style="font-weight:600; margin-bottom:12px; font-size:1rem;">预览第一个结果</h3>
+      <video id="mt_resultVideo" controls></video>
+      <div style="display:flex; justify-content:center; margin-top:12px;">
+        <button class="btn" id="mt_downloadBtn">下载全部（逐个点击）</button>
+      </div>
+      <div class="video-list" id="mt_resultList" style="margin-top:16px; background:#fff;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 纯白物理遮罩 + 独立进度条 -->
+<div id="genOverlay">
+  <div class="overlay-percent" id="overlayPercent">0%</div>
+  <div class="overlay-bar-bg">
+    <div class="overlay-bar-fill" id="overlayProgressFill"></div>
+  </div>
+  <div class="overlay-status" id="overlayText">
+    正在初始化...
+  </div>
+</div>
+
+<script>
+__MUXER_CODE__
+</script>
+<script>
+/* 全局控制 */
+window.scrollToSec = function(n) {
+  var el = document.getElementById('section' + n);
+  if(el) {
+    var yOffset = el.getBoundingClientRect().top + window.pageYOffset - 80;
+    window.scrollTo({ top: yOffset, behavior: 'smooth' });
+  }
+};
+
+window.switchMode = function(mode) {
+  var btnDelay = document.getElementById('btn-mode-delay');
+  var btnMatting = document.getElementById('btn-mode-matting');
+  var appDelay = document.getElementById('app-delay');
+  var appMatting = document.getElementById('app-matting');
+  var navDelay = document.getElementById('delay-nav-links');
+
+  if(mode === 'delay') {
+    btnDelay.classList.add('active');
+    btnMatting.classList.remove('active');
+    appDelay.style.display = 'block';
+    appMatting.style.display = 'none';
+    navDelay.style.display = 'flex';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  } else {
+    btnDelay.classList.remove('active');
+    btnMatting.classList.add('active');
+    appDelay.style.display = 'none';
+    appMatting.style.display = 'block';
+    navDelay.style.display = 'none';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+};
+
+/* 视口观察器 */
+var observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('active');
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(function(el){ observer.observe(el); });
+
+/* ========================================= */
+/* 性能隔离 + 独立的 rAF 进度循环  */
+/* ========================================= */
+var progressState = {
+  target: 0,
+  shown: 0,
+  raf: null,
+  running: false,
+  text: ''
+};
+
+function startProgressLoop() {
+  if(progressState.running) return;
+  progressState.running = true;
+  
+  function tick() {
+    if(!progressState.running) return;
+    
+    var diff = progressState.target - progressState.shown;
+    if(Math.abs(diff) < 0.5) progressState.shown = progressState.target;
+    else progressState.shown += diff * 0.15;
+    
+    document.getElementById('overlayProgressFill').style.width = progressState.shown.toFixed(1) + '%';
+    document.getElementById('overlayPercent').textContent = Math.round(progressState.shown) + '%';
+    if(progressState.text) document.getElementById('overlayText').innerHTML = progressState.text;
+    
+    progressState.raf = requestAnimationFrame(tick);
+  }
+  progressState.raf = requestAnimationFrame(tick);
+}
+
+function stopProgressLoop() {
+  progressState.running = false;
+  if(progressState.raf) cancelAnimationFrame(progressState.raf);
+}
+
+function updateProgressUI(targetPct, textStr) {
+  progressState.target = Math.max(0, Math.min(100, targetPct));
+  progressState.text = textStr;
+}
+
+function enterPerformanceMode(titleText) {
+  // 隐藏所有应用容器与导航，把 DOM 负载降到最低
+  document.querySelector('.top-nav').style.display = 'none';
+  document.getElementById('app-delay').style.display = 'none';
+  document.getElementById('app-matting').style.display = 'none';
+  
+  // 激活遮罩与独立进度循环
+  document.getElementById('genOverlay').classList.add('active');
+  progressState.target = 0;
+  progressState.shown = 0;
+  progressState.text = titleText || '正在初始化...';
+  startProgressLoop();
+}
+
+function exitPerformanceMode() {
+  stopProgressLoop();
+  document.querySelector('.top-nav').style.display = 'grid';
+  var isDelay = document.getElementById('btn-mode-delay').classList.contains('active');
+  document.getElementById('app-delay').style.display = isDelay ? 'block' : 'none';
+  document.getElementById('app-matting').style.display = isDelay ? 'none' : 'block';
+  document.getElementById('genOverlay').classList.remove('active');
+}
+</script>
+
+<!-- ========================================== -->
+<!-- 延时切片 引擎 -->
+<!-- ========================================== -->
+<script>
+(function(){
+  var MAX_N = 512;
+  var DEFAULT_N = 60;
+
+  var state = {
+    step: 1, videoFile: null, videoDuration: 0, videoWidth: 0, videoHeight: 0, N: DEFAULT_N,
+    quality: 'original', targetW: 0, targetH: 0, allFrames: [], selectedIndices: [], currentPreviewIndex: 0,
+    frames: [], ruleTypes: [], shapes: [], outputs: [], dirHandle: null, orderedCombos: []
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function saveAs(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function getVideoExt(blob){
+    if(!blob || !blob.type) return '.mp4';
+    return blob.type.toLowerCase().indexOf('webm') >= 0 ? '.webm' : '.mp4';
+  }
+
+  var __yieldMC = null;
+  function fastYield(){
+    if(typeof scheduler !== 'undefined' && scheduler && typeof scheduler.postTask === 'function'){
+      try{ return scheduler.postTask(function(){}, { priority: 'user-visible' }); }catch(e){ }
+    }
+    if(typeof MessageChannel !== 'undefined'){
+      if(!__yieldMC){ __yieldMC = new MessageChannel(); }
+      return new Promise(function(resolve){ __yieldMC.port1.onmessage = function(){ resolve(); }; __yieldMC.port2.postMessage(null); });
+    }
+    return new Promise(function(r){ setTimeout(r, 0); });
+  }
+
+  $('videoInput').addEventListener('change', function(e){
+    var f = this.files[0]; if(!f) return;
+    state.videoFile = f;
+    $('status1').innerHTML = '<span class="spinner"></span> 正在读取视频信息...';
+
+    var v = document.createElement('video');
+    v.preload = 'metadata'; v.muted = true; v.playsInline = true;
+    v.src = URL.createObjectURL(f);
+    v.onloadedmetadata = function(){
+      state.videoDuration = v.duration; state.videoWidth = v.videoWidth; state.videoHeight = v.videoHeight;
+      $('viName').textContent = f.name;
+      var mins = Math.floor(v.duration/60), secs = (v.duration%60).toFixed(2);
+      $('viDuration').textContent = mins > 0 ? mins + 'min ' + secs + 's' : secs + 's';
+      $('viResolution').textContent = v.videoWidth + 'x' + v.videoHeight;
+      $('videoInfoBox').classList.remove('hidden');
+      $('status1').textContent = '视频已就绪，请滚动至第2步。';
+      $('status1').style.color = 'var(--success)';
+      updateQualityInfo();
+      
+      setTimeout(function(){ scrollToSec(2); }, 300);
+    };
+    v.onerror = function(){ $('status1').textContent = '视频读取失败'; $('status1').style.color = '#ff453a'; };
+  });
+
+  $('trackCount').addEventListener('input', function(){
+    var val = parseInt(this.value) || DEFAULT_N;
+    if(val < 2) val = 2; if(val > MAX_N) val = MAX_N; state.N = val;
+  });
+
+  document.querySelectorAll('#qualityRow .preset-btn').forEach(function(btn){
+    btn.onclick = function(){
+      document.querySelectorAll('#qualityRow .preset-btn').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+      state.quality = btn.dataset.quality;
+      updateQualityInfo();
+    };
+  });
+
+  function computeTargetSize(){
+    var srcW = state.videoWidth, srcH = state.videoHeight;
+    // 奇数分辨率强制向下取偶，防止编码器崩溃
+    if(state.quality === 'original' || srcW === 0) {
+        return {w: srcW - (srcW % 2), h: srcH - (srcH % 2)};
+    }
+    var targetW = state.quality === '1080p' ? 1920 : (state.quality === '2k' ? 2560 : 3840);
+    if(targetW > srcW) targetW = srcW;
+    var targetH = Math.round(srcH * targetW / srcW);
+    return {w: targetW - (targetW%2), h: targetH - (targetH%2)};
+  }
+
+  function updateQualityInfo(){
+    $('qiSource').textContent = state.videoWidth + ' x ' + state.videoHeight;
+    var t = computeTargetSize();
+    $('qiTarget').textContent = t.w + ' x ' + t.h + (state.quality === 'original' ? ' (原画质)' : '');
+    $('startExtractBtn').disabled = false;
+  }
+
+  $('startExtractBtn').onclick = async function(){
+    this.disabled = true;
+    await extractFrames();
+  };
+
+  async function extractFrames(){
+    state.N = Math.max(2, Math.min(MAX_N, parseInt($('trackCount').value)||DEFAULT_N));
+    var total = state.N; var target = computeTargetSize();
+    state.targetW = target.w; state.targetH = target.h;
+    
+    $('qualityArea').classList.add('hidden'); $('extractArea').classList.remove('hidden'); $('selectArea').classList.add('hidden');
+    $('framePreviewGrid').innerHTML = '';
+    $('progressBar2').style.width = '0%';
+    $('status2').innerHTML = '<span class="spinner"></span> 正在读取...';
+
+    var v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(state.videoFile);
+    await new Promise(function(res, rej){ v.onloadeddata = res; v.onerror = function(){ rej(new Error('加载失败')); }; });
+    
+    var dur = v.duration; state.allFrames = []; state.selectedIndices = [];
+
+    for(var i=0; i<total; i++){
+      v.currentTime = (i + 0.5) * dur / total;
+      await new Promise(function(r){ var done = false; function fin(){ if(done)return; done=true; r(); } v.onseeked = function(){ setTimeout(fin, 40); }; setTimeout(fin, 800); });
+      
+      var c = document.createElement('canvas');
+      c.width = target.w; c.height = target.h;
+      c.getContext('2d').drawImage(v, 0, 0, target.w, target.h);
+      
+      state.allFrames.push(c); state.selectedIndices.push(i);
+
+      $('progressBar2').style.width = ((i+1)/total*100) + '%';
+      $('status2').innerHTML = '<span class="spinner"></span> 抽帧 ' + (i+1) + '/' + total;
+      await fastYield();
+    }
+
+    $('extractArea').classList.add('hidden'); $('selectArea').classList.remove('hidden');
+    $('extractCount').textContent = total;
+    
+    state.N = state.selectedIndices.length;
+    state.frames = [];
+    for(var k=0; k<state.selectedIndices.length; k++) state.frames.push(state.allFrames[state.selectedIndices[k]]);
+    
+    renderFrameSelector(); updateFrameCounter(); initSelectArea();
+  }
+
+  function initSelectArea(){
+    state.currentPreviewIndex = 0;
+    $('frameSlider').min = 0; $('frameSlider').max = Math.max(0, state.allFrames.length - 1); $('frameSlider').value = 0;
+    updateFullPreview(); highlightFocusedThumb(0);
+  }
+
+  function updateFullPreview(){
+    var src = state.allFrames[state.currentPreviewIndex];
+    if(!src){ $('fullPreviewLabel').textContent = '帧 0 / 0'; return; }
+    $('fullPreviewCanvas').width = src.width; $('fullPreviewCanvas').height = src.height;
+    $('fullPreviewCanvas').getContext('2d').drawImage(src, 0, 0);
+    $('fullPreviewLabel').textContent = '帧 ' + (state.currentPreviewIndex + 1) + ' / ' + state.allFrames.length;
+    var isSel = state.selectedIndices.indexOf(state.currentPreviewIndex) >= 0;
+    $('fullPreviewSelectedTag').textContent = isSel ? '已保留' : '已去掉';
+    $('fullPreviewSelectedTag').style.color = isSel ? 'var(--success)' : '#ff453a';
+  }
+
+  function highlightFocusedThumb(i){
+    var items = $('framePreviewGrid').querySelectorAll('.frame-item');
+    for(var k=0; k<items.length; k++) items[k].classList.remove('focused');
+    var el = $('framePreviewGrid').querySelector('.frame-item[data-idx="' + i + '"]');
+    if(el) el.classList.add('focused');
+  }
+
+  function scrollThumbIntoView(i){
+    var el = $('framePreviewGrid').querySelector('.frame-item[data-idx="' + i + '"]');
+    if(el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  $('frameSlider').oninput = function(){ state.currentPreviewIndex = parseInt(this.value); updateFullPreview(); highlightFocusedThumb(this.value); scrollThumbIntoView(this.value); };
+  $('prevFrameBtn').onclick = function(){ if(state.currentPreviewIndex > 0){ state.currentPreviewIndex--; $('frameSlider').value = state.currentPreviewIndex; updateFullPreview(); highlightFocusedThumb(state.currentPreviewIndex); scrollThumbIntoView(state.currentPreviewIndex); } };
+  $('nextFrameBtn').onclick = function(){ if(state.currentPreviewIndex < state.allFrames.length - 1){ state.currentPreviewIndex++; $('frameSlider').value = state.currentPreviewIndex; updateFullPreview(); highlightFocusedThumb(state.currentPreviewIndex); scrollThumbIntoView(state.currentPreviewIndex); } };
+  $('toggleSelectBtn').onclick = function(){ toggleFrameSelection(state.currentPreviewIndex); };
+
+  function toggleFrameSelection(i){
+    var pos = state.selectedIndices.indexOf(i);
+    if(pos >= 0) state.selectedIndices.splice(pos, 1); else { state.selectedIndices.push(i); state.selectedIndices.sort(function(a,b){ return a-b; }); }
+    updateFrameCounter(); updateThumbState(i); updateFullPreview();
+    
+    state.N = state.selectedIndices.length;
+    state.frames = [];
+    for(var k=0; k<state.selectedIndices.length; k++) state.frames.push(state.allFrames[state.selectedIndices[k]]);
+  }
+
+  function updateThumbState(i){
+    var el = $('framePreviewGrid').querySelector('.frame-item[data-idx="' + i + '"]'); if(!el) return;
+    var isSel = state.selectedIndices.indexOf(i) >= 0;
+    el.classList.toggle('unselected', !isSel);
+    var mark = el.querySelector('.unselected-mark');
+    if(!isSel && !mark){ var d = document.createElement('div'); d.className = 'unselected-mark'; d.textContent = '×'; el.appendChild(d); }
+    else if(isSel && mark) mark.remove();
+  }
+
+  function renderFrameSelector(){
+    $('framePreviewGrid').innerHTML = '';
+    var total = state.allFrames.length, idx = 0;
+    function batch(){
+      var end = Math.min(idx + 20, total);
+      for(; idx<end; idx++){
+        (function(i){
+          var canvas = state.allFrames[i], isSel = state.selectedIndices.indexOf(i) >= 0;
+          var div = document.createElement('div'); div.className = 'frame-item' + (isSel ? '' : ' unselected'); div.dataset.idx = i;
+          var tc = document.createElement('canvas'); tc.width = 100; tc.height = Math.round(canvas.height*100/canvas.width); tc.getContext('2d').drawImage(canvas,0,0,tc.width,tc.height);
+          var img = document.createElement('img'); img.src = tc.toDataURL('image/jpeg',0.6); div.appendChild(img);
+          var span = document.createElement('span'); span.className = 'idx'; span.textContent = i+1; div.appendChild(span);
+          if(!isSel){ var m = document.createElement('div'); m.className = 'unselected-mark'; m.textContent = '×'; div.appendChild(m); }
+          div.onclick = function(){ state.currentPreviewIndex = i; $('frameSlider').value = i; toggleFrameSelection(i); highlightFocusedThumb(i); scrollThumbIntoView(i); };
+          $('framePreviewGrid').appendChild(div);
+        })(idx);
+      }
+      if(idx < total) requestAnimationFrame(batch);
+    }
+    batch();
+  }
+
+  function updateFrameCounter(){
+    var sel = state.selectedIndices.length, total = state.allFrames.length;
+    if(total === 0){ $('frameCounter').textContent = '有效帧 0 / 共 0 帧'; $('toStep3').disabled = true; return; }
+    if(sel === total){ $('frameCounter').textContent = '有效帧 ' + sel + ' / 共 ' + total + ' 帧（全部保留）'; $('frameCounter').style.color = 'var(--success)'; $('toStep3').disabled = false; }
+    else if(sel >= 1){ $('frameCounter').textContent = '有效帧 ' + sel + ' / 共 ' + total + ' 帧（已去掉 ' + (total-sel) + ' 帧）'; $('frameCounter').style.color = 'var(--accent)'; $('toStep3').disabled = false; }
+    else { $('frameCounter').textContent = '有效帧 0 / 共 ' + total + ' 帧（至少保留 1 帧）'; $('frameCounter').style.color = '#ff453a'; $('toStep3').disabled = true; }
+  }
+
+  $('toStep3').onclick = function(){
+    if(state.selectedIndices.length < 1){ alert('至少保留 1 帧'); return; }
+    state.N = state.selectedIndices.length;
+    state.frames = [];
+    for(var i = 0; i < state.selectedIndices.length; i++){
+      state.frames.push(state.allFrames[state.selectedIndices[i]]);
+    }
+    // 物理销毁未选中的帧，强行释放 4K 内存
+    for (var j = 0; j < state.allFrames.length; j++) {
+        if (state.selectedIndices.indexOf(j) < 0 && state.allFrames[j]) {
+            state.allFrames[j].width = 0;
+            state.allFrames[j].height = 0;
+        }
+    }
+    scrollToSec(3);
+  };
+
+  var SHAPES = [
+    { id: 'original', icon: '🎬', name: '原视频' }, { id: 'foldline', icon: '⇗', name: '半扇折线' },
+    { id: 'foldline90', icon: '⇖', name: '半扇垂线' }, { id: 'vertical', icon: '▥', name: '竖切' },
+    { id: 'horizontal', icon: '▤', name: '横切' }, { id: 'semicircle', icon: '◒', name: '半扇' },
+    { id: 'leftsemicircle', icon: '◐', name: '左半扇' }, { id: 'sector', icon: '🌀', name: '全扇' },
+    { id: 'ring', icon: '◎', name: '圆形' }, { id: 'halfring', icon: '◠', name: '半圆' },
+    { id: 'diamond', icon: '◇', name: '菱形' }, { id: 'square', icon: '▢', name: '正方形' },
+    { id: 'heart', icon: '♡', name: '爱心' }, { id: 'star', icon: '☆', name: '五角星' },
+    { id: 'hexagon', icon: '⬡', name: '六边形' }, { id: 'octagon', icon: '🛑', name: '八边形' },
+    { id: 'hexagram', icon: '✡️', name: '六角星' }
+  ];
+
+  SHAPES.forEach(function(s){
+    var card = document.createElement('div'); card.className = 'choice-card'; card.dataset.shape = s.id;
+    card.innerHTML = '<span class="icon">' + s.icon + '</span><div class="label">' + s.name + '</div>';
+    card.onclick = function(){
+      var idx = state.shapes.indexOf(s.id);
+      if(idx >= 0){ state.shapes.splice(idx, 1); card.classList.remove('selected'); }
+      else { state.shapes.push(s.id); card.classList.add('selected'); }
+      checkStep3();
+    };
+    $('shapeGrid').appendChild(card);
+  });
+
+  document.querySelectorAll('[data-type]').forEach(function(card){
+    card.onclick = function(){
+      var t = card.dataset.type, idx = state.ruleTypes.indexOf(t);
+      if(idx >= 0){ state.ruleTypes.splice(idx, 1); card.classList.remove('selected'); }
+      else { state.ruleTypes.push(t); card.classList.add('selected'); }
+      checkStep3();
+    };
+  });
+
+  function getCombos(){
+    var combos = [];
+    for(var i=0;i<state.shapes.length;i++){
+      var sh = state.shapes[i];
+      if(sh === 'original') combos.push({shape: sh, ruleType: null, name: '原视频'});
+      else for(var j=0;j<state.ruleTypes.length;j++) combos.push({shape: sh, ruleType: state.ruleTypes[j], name: getRuleShort(state.ruleTypes[j]) + '_' + getShapeName(sh)});
+    }
+    return combos;
+  }
+
+  function getShapeName(id){ for(var i=0;i<SHAPES.length;i++){ if(SHAPES[i].id === id) return SHAPES[i].name; } return id; }
+  function getRuleShort(id){ if(id === 'loop') return '循环'; if(id === 'wave') return '波浪'; if(id === 'expand') return '展开'; if(id === 'waveexpand') return '波浪展开'; return id; }
+  function getRuleName(id){ if(id === 'loop') return '循环类'; if(id === 'wave') return '波浪循环类'; if(id === 'expand') return '展开类'; if(id === 'waveexpand') return '波浪展开类'; return '-'; }
+
+  function checkStep3(){
+    var newCombos = getCombos();
+    // 保护用户已经拖拽好的顺序
+    var oldOrderNames = state.orderedCombos.map(function(c){ return c.name; });
+    newCombos.sort(function(a, b){
+        var idxA = oldOrderNames.indexOf(a.name);
+        var idxB = oldOrderNames.indexOf(b.name);
+        if(idxA === -1 && idxB === -1) return 0;
+        if(idxA === -1) return 1; // 新加的排后面
+        if(idxB === -1) return -1;
+        return idxA - idxB;
+    });
+    
+    state.orderedCombos = newCombos;
+    updateSummary();
+  }
+
+  $('pickFolderBtn').onclick = async function(){
+    if(!window.showDirectoryPicker){ alert('浏览器不支持文件夹选择。'); return; }
+    try{
+      var handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      state.dirHandle = handle;
+      $('folderName').innerHTML = '<span style="color:var(--success);">已选择：</span>' + handle.name;
+    }catch(err){ if(err.name !== 'AbortError') alert('选择失败：' + err.message); }
+  };
+
+  function getTargetDuration(){
+    var T = parseFloat($('targetDuration').value);
+    if(isNaN(T) || T <= 0.1) T = 2;
+    return T;
+  }
+
+  function renderComboList(){
+    $('comboList').innerHTML = '';
+    state.orderedCombos.forEach(function(c, i){
+      var div = document.createElement('div'); div.className = 'combo-item'; div.draggable = true; div.dataset.index = i;
+      div.innerHTML = '<span style="color:var(--text-sub);margin-right:12px;">⋮⋮</span><span class="tag">' + (i+1) + '</span><span>' + (c.shape==='original'?'原视频':getRuleName(c.ruleType)+' x '+getShapeName(c.shape)) + '</span>';
+      div.ondragstart = function(e){ dragSrcEl = this; e.dataTransfer.effectAllowed='move'; this.classList.add('dragging'); };
+      div.ondragover = function(e){ e.preventDefault(); this.classList.add('over'); };
+      div.ondragleave = function(){ this.classList.remove('over'); };
+      div.ondrop = function(e){
+        e.stopPropagation(); this.classList.remove('over');
+        if(dragSrcEl !== this){
+          var from = parseInt(dragSrcEl.dataset.index), to = parseInt(this.dataset.index);
+          var item = state.orderedCombos.splice(from, 1)[0];
+          state.orderedCombos.splice(to, 0, item);
+          setTimeout(renderComboList, 10);
+        }
+      };
+      div.ondragend = function(){ this.classList.remove('dragging'); document.querySelectorAll('.combo-item').forEach(function(el){ el.classList.remove('over'); }); };
+      $('comboList').appendChild(div);
+    });
+  }
+  var dragSrcEl = null;
+
+  function updateSummary(){
+    $('summaryBox').innerHTML = '<div class="info-card"><span class="k">有效帧数</span><span class="v">' + state.N + '</span></div>' +
+                                '<div class="info-card"><span class="k">输出尺寸</span><span class="v">' + state.targetW + ' x ' + state.targetH + '</span></div>';
+    renderComboList();
+  }
+
+  function waveBase(p, N){ if(N<=1) return 0; var raw = (N-1)*(1-Math.abs(2*p/(N-1)-1)); return Math.max(0, Math.min(N-1, Math.round(raw))); }
+  function computeImgIndex(ruleType, trackIdx, outIdx, N){
+    if(ruleType === 'loop') return ((trackIdx - outIdx) % N + N) % N;
+    if(ruleType === 'wave') return waveBase(((trackIdx - outIdx) % N + N) % N, N);
+    if(ruleType === 'waveexpand') return (trackIdx <= outIdx) ? waveBase(trackIdx, N) : 0;
+    return (trackIdx <= outIdx) ? trackIdx : 0;
+  }
+  function rotatePoint(p, ang){ var c = Math.cos(ang), s = Math.sin(ang); return [p[0]*c - p[1]*s, p[0]*s + p[1]*c]; }
+
+  function clipShape(ctx, shape, t, N, W, H, cx, cy, Rmax){
+    ctx.beginPath();
+    var step = Rmax / N;
+    var pad = 1.5; // 全局外扩像素量，抗锯齿重合
+    
+    if(shape === 'halfring'){ 
+        ctx.arc(W/2, H, (t+1)*(Math.sqrt((W/2)*(W/2)+H*H)/N) + pad, Math.PI, 2*Math.PI); 
+    }
+    else if(shape === 'leftsemicircle'){ 
+        var asL = Math.PI / N;
+        var aL1 = -Math.PI / 2 + t * asL;
+        var aL2 = aL1 + asL;
+        ctx.moveTo(0, cy);
+        ctx.arc(0, cy, Rmax * 3, aL1 - 0.005, aL2 + 0.005); 
+        ctx.closePath();
+    }
+    else if(shape === 'foldline90'){
+        var aq90 = W / 4 + pad;
+        var Rfar90 = Math.max(W, H) * 5;
+        var th1_90 = t * 2 * Math.PI / N;
+        var th2_90 = (t + 1) * 2 * Math.PI / N;
+        var P1_90 = [0, -aq90];
+        var P2_90 = [Rfar90, -aq90];
+        var p1a_90 = rotatePoint(P1_90, th1_90 - 0.01);
+        var p2a_90 = rotatePoint(P2_90, th1_90 - 0.01);
+        var p1b_90 = rotatePoint(P1_90, th2_90 + 0.01);
+        var p2b_90 = rotatePoint(P2_90, th2_90 + 0.01);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + p1a_90[0], cy + p1a_90[1]);
+        ctx.lineTo(cx + p2a_90[0], cy + p2a_90[1]);
+        ctx.lineTo(cx + p2b_90[0], cy + p2b_90[1]);
+        ctx.lineTo(cx + p1b_90[0], cy + p1b_90[1]);
+        ctx.closePath();
+    }
+    else if(shape === 'vertical'){ 
+        var sw = W/N;
+        ctx.rect(t*sw - pad, -pad, sw + pad*2, H + pad*2);
+    }
+    else if(shape === 'horizontal'){ 
+        var sh = H/N;
+        ctx.rect(-pad, t*sh - pad, W + pad*2, sh + pad*2);
+    }
+    else if(shape === 'semicircle'){
+        var as = Math.PI/N;
+        var a1 = -Math.PI + t*as;
+        var a2 = a1 + as;
+        ctx.moveTo(cx, H);
+        ctx.arc(cx, H, Rmax*3, a1 - 0.005, a2 + 0.005);
+        ctx.closePath();
+    }
+    else if(shape === 'sector'){
+        var as2 = 2*Math.PI/N;
+        var a3 = t*as2;
+        var a4 = a3 + as2;
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, Rmax*3, a3 - 0.005, a4 + 0.005);
+        ctx.closePath();
+    }
+    else if(shape === 'ring'){
+        var r1 = (t+1)*step + pad;
+        ctx.arc(cx, cy, r1, 0, 2*Math.PI);
+    }
+    else if(shape === 'diamond'){
+        var r2 = (t+1)*step + pad;
+        var d = r2 * Math.SQRT2;
+        ctx.moveTo(cx, cy-d);
+        ctx.lineTo(cx+d, cy);
+        ctx.lineTo(cx, cy+d);
+        ctx.lineTo(cx-d, cy);
+        ctx.closePath();
+    }
+    else if(shape === 'square'){
+        var r3 = (t+1)*step + pad;
+        ctx.rect(cx-r3, cy-r3, 2*r3, 2*r3);
+    }
+    else if(shape === 'heart'){
+        var r4 = (t+1)*step + pad;
+        var scale = r4/5;
+        var total = 120;
+        for(var j=0;j<=total;j++){
+          var ang = (j/total)*2*Math.PI;
+          var x = 16*Math.pow(Math.sin(ang),3);
+          var y = -(13*Math.cos(ang) - 5*Math.cos(2*ang) - 2*Math.cos(3*ang) - Math.cos(4*ang));
+          var px = cx + x*scale;
+          var py = cy + y*scale;
+          if(j===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+    }
+    else if(shape === 'star'){
+        var r5 = (t+1)*step + pad;
+        var innerRatio = Math.sin(Math.PI/10)/Math.sin(3*Math.PI/10);
+        var outerR = r5/innerRatio;
+        var innerR = r5;
+        for(var k2=0;k2<10;k2++){
+          var radius = (k2%2===0) ? outerR : innerR;
+          var ang2 = -Math.PI/2 + k2*Math.PI/5;
+          var x2 = cx + radius*Math.cos(ang2);
+          var y2 = cy + radius*Math.sin(ang2);
+          if(k2===0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+        }
+        ctx.closePath();
+    }
+    else if(shape === 'hexagon'){
+        var r6 = (t+1)*step + pad;
+        var vertexR6 = r6 / Math.cos(Math.PI/6);
+        var sides6 = 6;
+        for(var j6=0;j6<sides6;j6++){
+          var ang6 = -Math.PI/2 + j6 * (2*Math.PI/sides6);
+          var x6 = cx + vertexR6*Math.cos(ang6);
+          var y6 = cy + vertexR6*Math.sin(ang6);
+          if(j6===0) ctx.moveTo(x6,y6); else ctx.lineTo(x6,y6);
+        }
+        ctx.closePath();
+    }
+    else if(shape === 'octagon'){
+        var r8 = (t+1)*step + pad;
+        var vertexR8 = r8 / Math.cos(Math.PI/8);
+        var sides8 = 8;
+        for(var j8=0;j8<sides8;j8++){
+          var ang8 = -Math.PI/2 + j8 * (2*Math.PI/sides8);
+          var x8 = cx + vertexR8*Math.cos(ang8);
+          var y8 = cy + vertexR8*Math.sin(ang8);
+          if(j8===0) ctx.moveTo(x8,y8); else ctx.lineTo(x8,y8);
+        }
+        ctx.closePath();
+    }
+    else if(shape === 'hexagram'){
+        var r6s = (t+1)*step + pad;
+        var innerRatio6 = Math.cos(2*Math.PI/6) / Math.cos(Math.PI/6);
+        var outerR6 = r6s/innerRatio6;
+        var innerR6 = r6s;
+        var points6 = 6;
+        for(var k6=0;k6<points6*2;k6++){
+          var radius6 = (k6%2===0) ? outerR6 : innerR6;
+          var ang6s = -Math.PI/2 + k6*Math.PI/6;
+          var x6s = cx + radius6*Math.cos(ang6s);
+          var y6s = cy + radius6*Math.sin(ang6s);
+          if(k6===0) ctx.moveTo(x6s, y6s); else ctx.lineTo(x6s, y6s);
+        }
+        ctx.closePath();
+    }
+    else if(shape === 'foldline'){
+        var aq = W / 4 + pad;
+        var Rfar = Math.max(W, H) * 5;
+        var th1 = t * 2 * Math.PI / N;
+        var th2 = (t + 1) * 2 * Math.PI / N;
+        var P1 = [0, -aq];
+        var P2 = [Rfar, -Rfar - aq];
+        var p1a = rotatePoint(P1, th1 - 0.01);
+        var p2a = rotatePoint(P2, th1 - 0.01);
+        var p1b = rotatePoint(P1, th2 + 0.01);
+        var p2b = rotatePoint(P2, th2 + 0.01);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + p1a[0], cy + p1a[1]);
+        ctx.lineTo(cx + p2a[0], cy + p2a[1]);
+        ctx.lineTo(cx + p2b[0], cy + p2b[1]);
+        ctx.lineTo(cx + p1b[0], cy + p1b[1]);
+        ctx.closePath();
+    }
+    ctx.clip();
+  }
+
+  async function generateSlicesFor(shape, ruleType, comboName, comboIdx, totalCombos, onProgress){
+    var N = state.N;
+    var W = state.targetW;
+    var H = state.targetH;
+
+    if(shape === 'original'){
+      var blobsRaw = [];
+      for(var k=0;k<N;k++){
+        var blob = await new Promise(function(r){ state.frames[k].toBlob(r, 'image/png'); });
+        blobsRaw.push(blob);
+        onProgress(k+1, N, '原视频');
+        await fastYield();
+      }
+      return blobsRaw;
+    }
+
+    var cx = W/2, cy = H/2;
+    var Rmax = Math.sqrt(cx*cx + cy*cy);
+    var canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+    var blobs = [];
+
+    for(var k=0;k<N;k++){
+      ctx.clearRect(0, 0, W, H);
+      for(var t=N-1;t>=0;t--){
+        var imgIdx = computeImgIndex(ruleType, t, k, N);
+        var imgCanvas = state.frames[imgIdx];
+        ctx.save();
+        clipShape(ctx, shape, t, N, W, H, cx, cy, Rmax);
+        ctx.drawImage(imgCanvas, 0, 0, W, H);
+        ctx.restore();
+      }
+      
+      var blob = await new Promise(function(r){ canvas.toBlob(r, 'image/png'); });
+      blobs.push(blob);
+      onProgress(k+1, N, comboName);
+      
+      await fastYield();
+    }
+    return blobs;
+  }
+
+  async function composeVideo(sliceBlobs, T, fps, comboName, onProgress){
+    if(typeof VideoEncoder === 'undefined') throw new Error('浏览器不支持 WebCodecs');
+    if(typeof Mp4Muxer === 'undefined') throw new Error('mp4-muxer 未加载');
+
+    var firstBmp = await createImageBitmap(sliceBlobs[0]);
+    var W = firstBmp.width - (firstBmp.width % 2);
+    var H = firstBmp.height - (firstBmp.height % 2);
+    firstBmp.close();
+    
+    var candidates = ['avc1.640033','avc1.640028','avc1.4d0028','avc1.64001f','avc1.42001f'];
+    var cfg = null;
+    for(var ci = 0; ci < candidates.length; ci++){
+      // 强制 1 FPS 生成，逼迫编码器放弃秒级关键帧插入，全量采用 I 帧确保画质极佳
+      var c = { codec: candidates[ci], width: W, height: H, bitrate: 80000000, framerate: 1 };
+      try{
+        var s = await VideoEncoder.isConfigSupported(c);
+        if(s && s.supported){ cfg = c; break; }
+      }catch(e){ }
+    }
+    if(!cfg) throw new Error('没有可用的 H.264 编码配置');
+
+    var muxer = new Mp4Muxer.Muxer({
+      target: new Mp4Muxer.ArrayBufferTarget(),
+      video: { codec: 'avc', width: W, height: H },
+      fastStart: 'in-memory'
+    });
+
+    var encodeError = null;
+    var enc = new VideoEncoder({
+      output: function(chunk, meta){
+        // 封装层快放：把原本 1 秒 1 帧的 chunk 强行压缩成 T 秒的快放时间戳
+        if(chunk.timestamp >= 0){
+          var newTimestamp = Math.round(chunk.timestamp / 1000000 * (1000000 / sliceBlobs.length) * T);
+          var newData = new Uint8Array(chunk.byteLength);
+          chunk.copyTo(newData);
+          var newChunk = new EncodedVideoChunk({
+            type: chunk.type,
+            timestamp: newTimestamp,
+            duration: Math.round((1000000 / sliceBlobs.length) * T),
+            data: newData
+          });
+          muxer.addVideoChunk(newChunk, meta);
+        } else {
+          muxer.addVideoChunk(chunk, meta);
+        }
+      },
+      error: function(e){ encodeError = e; }
+    });
+    enc.configure(cfg);
+
+    // 原始生成的 1fps 时间戳间隔
+    var usPer = 1000000; 
+
+    for(var i = 0; i < sliceBlobs.length; i++){
+      if(encodeError) throw encodeError;
+      
+      var bmp = await createImageBitmap(sliceBlobs[i]);
+      // 全部标记为关键帧，绝不走帧间预测，这是不花屏的终极秘诀
+      var frame = new VideoFrame(bmp, { timestamp: i * usPer, duration: usPer });
+      enc.encode(frame, { keyFrame: true });
+      frame.close();
+      bmp.close();
+      
+      onProgress(i+1, sliceBlobs.length, comboName);
+      await fastYield();
+    }
+
+    await enc.flush();
+    enc.close();
+    if(encodeError) throw encodeError;
+    muxer.finalize();
+    
+    return new Blob([muxer.target.buffer], { type: 'video/mp4' });
+  }
+
+  async function saveBlobToFolder(blob, filename){
+    if(!state.dirHandle) throw new Error('未选择输出文件夹');
+    var fileHandle = await state.dirHandle.getFileHandle(filename, { create: true });
+    var writable = await fileHandle.createWritable(); await writable.write(blob); await writable.close();
+  }
+
+  $('generateBtn').onclick = async function(){
+    // 精准错误提示
+    let miss = [];
+    if(!state.videoFile) miss.push("上传视频");
+    if(!state.selectedIndices || state.selectedIndices.length === 0) miss.push("抽取并确认帧");
+    if(!state.shapes || state.shapes.length === 0) {
+        miss.push("选择形状");
+    } else {
+        var hasNonOriginal = state.shapes.some(function(s){ return s !== 'original'; });
+        if(hasNonOriginal && (!state.ruleTypes || state.ruleTypes.length === 0)) {
+            miss.push("选择大类型");
+        }
+    }
+
+    if(miss.length > 0){
+        $('status4').textContent = "缺少步骤：" + miss.join("、");
+        $('status4').style.color = 'var(--danger)';
+        return;
+    }
+
+    enterPerformanceMode('正在初始化引擎...');
+    this.disabled = true;
+    
+    $('outputList').innerHTML = ''; state.outputs = [];
+    var totalCombos = state.orderedCombos.length;
+    
+    var T = getTargetDuration();
+
+    try{
+      for(var ci=0; ci<totalCombos; ci++){
+        var combo = state.orderedCombos[ci];
+        var comboBase = ci / totalCombos;
+        var comboSlice = 1 / totalCombos;
+
+        var slices = await generateSlicesFor(combo.shape, combo.ruleType, combo.name, ci, totalCombos, function(cur, total, cName){
+          var pct = (comboBase + (cur/total) * comboSlice * 0.5) * 100;
+          updateProgressUI(pct, '正在处理: <strong>' + cName + '</strong> (' + (ci+1) + '/' + totalCombos + ')<br>切片中: ' + cur + ' / ' + total + ' 帧');
+        });
+
+        var mp4 = null;
+        try{ 
+          mp4 = await composeVideo(slices, T, 0, combo.name, function(cur, total, cName){
+            var pct = (comboBase + comboSlice * 0.5 + (cur/total) * comboSlice * 0.5) * 100;
+            updateProgressUI(pct, '正在处理: <strong>' + cName + '</strong> (' + (ci+1) + '/' + totalCombos + ')<br>编码中: ' + cur + ' / ' + total + ' 帧');
+          }); 
+        }catch(err){ 
+          throw err;
+        }
+        
+        var ext = getVideoExt(mp4);
+        if(mp4 && state.dirHandle){
+          updateProgressUI(99, '正在写入文件...');
+          await saveBlobToFolder(mp4, combo.name + ext);
+        }
+        
+        state.outputs.push({name: combo.name, blob: mp4, ext: ext});
+      }
+
+      updateProgressUI(100, '全部生成完成！');
+      
+      setTimeout(function(){
+        exitPerformanceMode();
+        renderOutputs();
+        $('generateBtn').disabled = false;
+      }, 800);
+
+    }catch(err){
+      console.error(err);
+      updateProgressUI(0, '出错：' + err.message);
+      setTimeout(function(){
+        exitPerformanceMode();
+        $('generateBtn').disabled = false;
+      }, 3000);
+    }
+  };
+
+  function renderOutputs(){
+    $('outputList').innerHTML = '';
+    var tip = document.createElement('div');
+    tip.style = 'font-size:.85rem;color:var(--text-sub);margin-bottom:12px;';
+    tip.textContent = state.dirHandle ? '文件已自动保存至文件夹。' : '请下载生成的视频。';
+    $('outputList').appendChild(tip);
+
+    state.outputs.forEach(function(out, i){
+      var item = document.createElement('div'); item.className = 'combo-item'; item.style.cursor = 'default';
+      var isWebm = out.ext === '.webm';
+      item.innerHTML = '<span style="flex:1;color:' + (isWebm ? '#ffd60a' : 'var(--success)') + ';">' + (i+1) + '. ' + out.name + out.ext + (isWebm ? ' (WebM)' : '') + '</span>';
+      
+      if(!state.dirHandle && out.blob){
+        var btn = document.createElement('button'); btn.className = 'btn small'; btn.textContent = '下载';
+        btn.onclick = function(){ saveAs(out.blob, out.name + out.ext); };
+        item.appendChild(btn);
+      }
+      $('outputList').appendChild(item);
+    });
+  }
+
+})();
+</script>
+
+<!-- ========================================== -->
+<!-- 视频抠图工具 引擎 -->
+<!-- ========================================== -->
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  var state = {
+    videoFiles: [],
+    previewIndex: 0,
+    duration: 0,
+    W: 0,
+    H: 0,
+    refW: null,
+    refH: null,
+    maskCanvas: null,
+    maskCtx: null,
+    tempCanvas: null,
+    tempCtx: null,
+    dctx: null,
+    brushSize: 60,
+    toolMode: 'free',
+    drawMode: 'draw',
+    polygonPoints: [],
+    history: [],
+    MAX_HISTORY: 15,
+    bgColor: '#000000',
+    transparentBg: false,
+    smartCrop: false,
+    bbox: null,
+    outputs: [],
+    dirHandle: null
+  };
+
+  var videoInput = $('mt_videoInput');
+  var videoListBox = $('mt_videoListBox');
+  var videoList = $('mt_videoList');
+  var videoCount = $('mt_videoCount');
+  var status1 = $('mt_status1');
+  var previewSelect = $('mt_previewSelect');
+  var displayCanvas = $('mt_displayCanvas');
+  var brushSizeInput = $('mt_brushSize');
+  var brushSizeVal = $('mt_brushSizeVal');
+  var toolFreeBtn = $('mt_toolFree');
+  var toolPolygonBtn = $('mt_toolPolygon');
+  var modeDrawBtn = $('mt_modeDraw');
+  var modeEraseBtn = $('mt_modeErase');
+  var btnUndo = $('mt_btnUndo');
+  var btnInvert = $('mt_btnInvert');
+  var btnClear = $('mt_btnClear');
+  var btnFull = $('mt_btnFull');
+  var polygonActions = $('mt_polygonActions');
+  var polygonHint = $('mt_polygonHint');
+  var btnPolyConfirm = $('mt_btnPolyConfirm');
+  var btnPolyCancel = $('mt_btnPolyCancel');
+  var status2 = $('mt_status2');
+  var timeline = $('mt_timeline');
+  var currentTimeEl = $('mt_currentTime');
+  var totalTimeEl = $('mt_totalTime');
+  var summaryBox = $('mt_summaryBox');
+  var bgColorInput = $('mt_bgColor');
+  var transparentBgInput = $('mt_transparentBg');
+  var smartCropInput = $('mt_smartCrop');
+  var formatNote = $('mt_formatNote');
+  var bboxInfo = $('mt_bboxInfo');
+  var folderBox = $('mt_folderBox');
+  var folderName = $('mt_folderName');
+  var pickFolderBtn = $('mt_pickFolderBtn');
+  var generateBtn = $('mt_generateBtn');
+  var progressWrap4 = $('mt_progressWrap4');
+  var progressBar4 = $('mt_progressBar4');
+  var status4 = $('mt_status4');
+  var resultBox = $('mt_resultBox');
+  var resultVideo = $('mt_resultVideo');
+  var resultList = $('mt_resultList');
+  var downloadBtn = $('mt_downloadBtn');
+
+  function formatTime(sec){
+    if(!isFinite(sec)) sec = 0;
+    var m = Math.floor(sec / 60);
+    var s = sec - m * 60;
+    var ss = s.toFixed(2);
+    if(s < 10) ss = '0' + ss;
+    var mm = m < 10 ? '0' + m : '' + m;
+    return mm + ':' + ss;
+  }
+
+  function waitSeek(v, time){
+    return new Promise(function(resolve){
+      var done = false;
+      function finish(){ if(done) return; done = true; resolve(); }
+      function onSeeked(){
+        v.removeEventListener('seeked', onSeeked);
+        setTimeout(finish, 60);
+      }
+      v.addEventListener('seeked', onSeeked);
+      if(Math.abs(v.currentTime - time) < 0.01){
+        v.currentTime = Math.min(time + 0.03, (v.duration || time + 0.03));
+      } else {
+        v.currentTime = time;
+      }
+      setTimeout(finish, 1500);
+    });
+  }
+
+  videoInput.addEventListener('change', function(e){
+    var files = Array.from(this.files);
+    if(files.length === 0) return;
+    for(var i=0;i<files.length;i++) state.videoFiles.push(files[i]);
+    renderVideoList();
+    videoListBox.classList.remove('hidden');
+    status1.textContent = '已选 ' + state.videoFiles.length + ' 个视频。';
+    status1.style.color = 'var(--text-main)';
+    
+    initPreview();
+  });
+
+  function renderVideoList(){
+    videoCount.textContent = state.videoFiles.length;
+    videoList.innerHTML = '';
+    for(var i=0;i<state.videoFiles.length;i++){
+      (function(idx){
+        var item = document.createElement('div');
+        item.className = 'video-item';
+        var num = document.createElement('div');
+        num.className = 'num';
+        num.textContent = idx + 1;
+        item.appendChild(num);
+        var name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = state.videoFiles[idx].name;
+        item.appendChild(name);
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+        if(idx > 0){
+          var up = document.createElement('button');
+          up.className = 'btn tiny secondary';
+          up.textContent = '↑';
+          up.onclick = function(){
+            var t = state.videoFiles[idx - 1];
+            state.videoFiles[idx - 1] = state.videoFiles[idx];
+            state.videoFiles[idx] = t;
+            renderVideoList();
+            initPreview();
+          };
+          actions.appendChild(up);
+        }
+        if(idx < state.videoFiles.length - 1){
+          var down = document.createElement('button');
+          down.className = 'btn tiny secondary';
+          down.textContent = '↓';
+          down.onclick = function(){
+            var t = state.videoFiles[idx + 1];
+            state.videoFiles[idx + 1] = state.videoFiles[idx];
+            state.videoFiles[idx] = t;
+            renderVideoList();
+            initPreview();
+          };
+          actions.appendChild(down);
+        }
+        var rm = document.createElement('button');
+        rm.className = 'btn tiny red';
+        rm.textContent = '✕';
+        rm.onclick = function(){
+          state.videoFiles.splice(idx, 1);
+          renderVideoList();
+          if(state.videoFiles.length === 0){
+            videoListBox.classList.add('hidden');
+            status1.textContent = '等待上传视频…';
+          } else {
+            initPreview();
+          }
+        };
+        actions.appendChild(rm);
+        item.appendChild(actions);
+        videoList.appendChild(item);
+      })(i);
+    }
+  }
+
+  async function initPreview(){
+    previewSelect.innerHTML = '';
+    for(var i=0;i<state.videoFiles.length;i++){
+      var opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = (i+1) + '. ' + state.videoFiles[i].name;
+      previewSelect.appendChild(opt);
+    }
+    previewSelect.onchange = async function(){
+      await loadPreviewVideo(parseInt(this.value));
+    };
+    await loadPreviewVideo(0);
+  }
+
+  async function loadPreviewVideo(index){
+    status2.innerHTML = '<span class="spinner"></span> 加载视频 ' + (index+1) + '/' + state.videoFiles.length + '…';
+
+    var previewVideo = document.getElementById('mt_hidden_video');
+    try { previewVideo.pause(); } catch(e){}
+
+    var file = state.videoFiles[index];
+    var url = URL.createObjectURL(file);
+    previewVideo.src = url;
+
+    await new Promise(function(res){
+      var ok = false;
+      function onCanPlay(){
+        if(ok) return;
+        ok = true;
+        previewVideo.removeEventListener('canplay', onCanPlay);
+        res();
+      }
+      previewVideo.addEventListener('canplay', onCanPlay);
+      previewVideo.addEventListener('error', function(){
+        if(ok) return;
+        ok = true;
+        res();
+      });
+      setTimeout(function(){ if(!ok){ ok = true; res(); } }, 8000);
+    });
+
+    state.previewIndex = index;
+    state.W = previewVideo.videoWidth;
+    state.H = previewVideo.videoHeight;
+    state.duration = previewVideo.duration;
+
+    if(state.refW === null){
+      state.refW = state.W;
+      state.refH = state.H;
+      state.maskCanvas = document.createElement('canvas');
+      state.maskCanvas.width = state.refW;
+      state.maskCanvas.height = state.refH;
+      state.maskCtx = state.maskCanvas.getContext('2d');
+      state.history = [];
+      state.polygonPoints = [];
+      updateUndoBtn();
+    }
+
+    displayCanvas.width = state.W;
+    displayCanvas.height = state.H;
+    state.dctx = displayCanvas.getContext('2d');
+
+    state.tempCanvas = document.createElement('canvas');
+    state.tempCanvas.width = state.W;
+    state.tempCanvas.height = state.H;
+    state.tempCtx = state.tempCanvas.getContext('2d');
+
+    timeline.min = 0;
+    timeline.max = state.duration;
+    timeline.step = 0.01;
+    timeline.value = 0;
+    totalTimeEl.textContent = formatTime(state.duration);
+    currentTimeEl.textContent = formatTime(0);
+
+    await waitSeek(previewVideo, 0);
+
+    if(state.W === 0 || state.H === 0){
+      state.W = previewVideo.videoWidth;
+      state.H = previewVideo.videoHeight;
+      displayCanvas.width = state.W;
+      displayCanvas.height = state.H;
+      state.tempCanvas.width = state.W;
+      state.tempCanvas.height = state.H;
+    }
+
+    renderDisplay();
+    status2.textContent = '用画笔在画面上刷出要保留的区域。尺寸：' + state.W + '×' + state.H;
+    status2.style.color = 'var(--text-main)';
+    updatePolygonActions();
+    
+    updateSummary();
+  }
+
+  var seekTarget = null;
+  var isSeeking = false;
+
+  async function seekLoop(){
+    if(isSeeking) return;
+    isSeeking = true;
+    var previewVideo = document.getElementById('mt_hidden_video');
+    while(seekTarget !== null){
+      var t = seekTarget;
+      seekTarget = null;
+      await waitSeek(previewVideo, t);
+      renderDisplay();
+    }
+    isSeeking = false;
+  }
+
+  timeline.addEventListener('input', function(){
+    var t = parseFloat(this.value);
+    currentTimeEl.textContent = formatTime(t);
+    seekTarget = t;
+    seekLoop();
+  });
+
+  function renderDisplay(){
+    if(!state.dctx) return;
+    var W = state.W, H = state.H;
+    if(W === 0 || H === 0) return;
+    var dctx = state.dctx;
+    var tctx = state.tempCtx;
+    var previewVideo = document.getElementById('mt_hidden_video');
+
+    dctx.clearRect(0, 0, W, H);
+    try { dctx.drawImage(previewVideo, 0, 0, W, H); } catch(e){}
+
+    tctx.clearRect(0, 0, W, H);
+    tctx.globalCompositeOperation = 'source-over';
+    tctx.fillStyle = 'rgba(255, 70, 70, 0.5)';
+    tctx.fillRect(0, 0, W, H);
+    tctx.globalCompositeOperation = 'destination-in';
+    tctx.drawImage(state.maskCanvas, 0, 0, W, H);
+    tctx.globalCompositeOperation = 'source-over';
+
+    dctx.drawImage(state.tempCanvas, 0, 0);
+
+    if(state.toolMode === 'polygon' && state.polygonPoints.length > 0){
+      dctx.save();
+      dctx.strokeStyle = '#ff5050';
+      dctx.lineWidth = 3;
+      dctx.setLineDash([8, 6]);
+      dctx.beginPath();
+      for(var i=0;i<state.polygonPoints.length;i++){
+        var p = state.polygonPoints[i];
+        if(i===0) dctx.moveTo(p.x, p.y);
+        else dctx.lineTo(p.x, p.y);
+      }
+      dctx.stroke();
+      dctx.setLineDash([]);
+      if(state.polygonPoints.length >= 3){
+        dctx.beginPath();
+        var p0 = state.polygonPoints[0];
+        var pn = state.polygonPoints[state.polygonPoints.length-1];
+        dctx.moveTo(pn.x, pn.y);
+        dctx.lineTo(p0.x, p0.y);
+        dctx.stroke();
+      }
+      for(var j=0;j<state.polygonPoints.length;j++){
+        var pp = state.polygonPoints[j];
+        dctx.beginPath();
+        dctx.arc(pp.x, pp.y, 7, 0, Math.PI * 2);
+        dctx.fillStyle = '#ff5050';
+        dctx.fill();
+        dctx.strokeStyle = '#ffffff';
+        dctx.lineWidth = 2;
+        dctx.stroke();
+      }
+      dctx.restore();
+    }
+
+    dctx.strokeStyle = 'rgba(0,113,227,0.3)';
+    dctx.lineWidth = 2;
+    dctx.strokeRect(1, 1, W-2, H-2);
+  }
+
+  function pushHistory(){
+    try {
+      var imgData = state.maskCtx.getImageData(0, 0, state.refW, state.refH);
+      state.history.push(imgData);
+      if(state.history.length > state.MAX_HISTORY) state.history.shift();
+      updateUndoBtn();
+    } catch(e){}
+  }
+
+  function updateUndoBtn(){
+    btnUndo.disabled = state.history.length === 0;
+  }
+
+  btnUndo.onclick = function(){
+    if(state.history.length === 0) return;
+    var imgData = state.history.pop();
+    state.maskCtx.putImageData(imgData, 0, 0);
+    updateUndoBtn();
+    renderDisplay();
+    updateBboxInfo();
+  };
+
+  function getMaskCoords(e){
+    var rect = displayCanvas.getBoundingClientRect();
+    var dx = (e.clientX - rect.left) * (displayCanvas.width / rect.width);
+    var dy = (e.clientY - rect.top) * (displayCanvas.height / rect.height);
+    var mx = dx * (state.refW / state.W);
+    var my = dy * (state.refH / state.H);
+    return { mx: mx, my: my, dx: dx, dy: dy };
+  }
+
+  var isDrawing = false;
+  var lastX = 0, lastY = 0;
+
+  function drawBrush(x1, y1, x2, y2){
+    var ctx = state.maskCtx;
+    var scale = state.refW / state.W;
+    var brushW = state.brushSize * scale;
+    var r = brushW / 2;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = brushW;
+    if(state.drawMode === 'draw'){
+      ctx.strokeStyle = 'rgba(255,255,255,1)';
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      ctx.globalCompositeOperation = 'destination-out';
+    }
+    if(x1 !== x2 || y1 !== y2){
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(x2, y2, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    renderDisplay();
+  }
+
+  displayCanvas.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    if(state.toolMode === 'polygon'){
+      var c = getMaskCoords(e);
+      state.polygonPoints.push({ x: c.dx, y: c.dy, mx: c.mx, my: c.my });
+      renderDisplay();
+      updatePolygonActions();
+      return;
+    }
+    pushHistory();
+    isDrawing = true;
+    try { displayCanvas.setPointerCapture(e.pointerId); } catch(err){}
+    var coords = getMaskCoords(e);
+    lastX = coords.mx;
+    lastY = coords.my;
+    drawBrush(coords.mx, coords.my, coords.mx, coords.my);
+  });
+
+  displayCanvas.addEventListener('pointermove', function(e){
+    if(!isDrawing || state.toolMode !== 'free') return;
+    e.preventDefault();
+    var c = getMaskCoords(e);
+    drawBrush(lastX, lastY, c.mx, c.my);
+    lastX = c.mx;
+    lastY = c.my;
+  });
+
+  displayCanvas.addEventListener('pointerup', function(){ isDrawing = false; });
+  displayCanvas.addEventListener('pointercancel', function(){ isDrawing = false; });
+
+  brushSizeInput.addEventListener('input', function(){
+    state.brushSize = parseInt(this.value);
+    brushSizeVal.textContent = state.brushSize;
+  });
+
+  toolFreeBtn.onclick = function(){
+    state.toolMode = 'free';
+    toolFreeBtn.className = 'btn active';
+    toolPolygonBtn.className = 'btn secondary';
+    polygonActions.style.display = 'none';
+    polygonHint.classList.remove('show');
+    renderDisplay();
+  };
+
+  toolPolygonBtn.onclick = function(){
+    state.toolMode = 'polygon';
+    toolPolygonBtn.className = 'btn active';
+    toolFreeBtn.className = 'btn secondary';
+    polygonActions.style.display = 'flex';
+    polygonHint.classList.add('show');
+    updatePolygonActions();
+    renderDisplay();
+  };
+
+  modeDrawBtn.onclick = function(){
+    state.drawMode = 'draw';
+    modeDrawBtn.className = 'btn active';
+    modeEraseBtn.className = 'btn secondary';
+  };
+
+  modeEraseBtn.onclick = function(){
+    state.drawMode = 'erase';
+    modeEraseBtn.className = 'btn active';
+    modeDrawBtn.className = 'btn secondary';
+  };
+
+  function updatePolygonActions(){
+    btnPolyConfirm.disabled = state.polygonPoints.length < 3;
+    btnPolyCancel.disabled = state.polygonPoints.length === 0;
+  }
+
+  btnPolyConfirm.onclick = function(){
+    if(state.polygonPoints.length < 3){ alert('至少需要 3 个点'); return; }
+    pushHistory();
+    state.maskCtx.save();
+    if(state.drawMode === 'draw'){
+      state.maskCtx.globalCompositeOperation = 'source-over';
+      state.maskCtx.fillStyle = 'rgba(255,255,255,1)';
+    } else {
+      state.maskCtx.globalCompositeOperation = 'destination-out';
+      state.maskCtx.fillStyle = 'rgba(0,0,0,1)';
+    }
+    state.maskCtx.beginPath();
+    for(var i=0;i<state.polygonPoints.length;i++){
+      var p = state.polygonPoints[i];
+      if(i===0) state.maskCtx.moveTo(p.mx, p.my);
+      else state.maskCtx.lineTo(p.mx, p.my);
+    }
+    state.maskCtx.closePath();
+    state.maskCtx.fill();
+    state.maskCtx.restore();
+    state.polygonPoints = [];
+    updatePolygonActions();
+    renderDisplay();
+  };
+
+  btnPolyCancel.onclick = function(){
+    state.polygonPoints = [];
+    updatePolygonActions();
+    renderDisplay();
+  };
+
+  btnClear.onclick = function(){
+    pushHistory();
+    state.maskCtx.clearRect(0, 0, state.refW, state.refH);
+    state.polygonPoints = [];
+    updatePolygonActions();
+    renderDisplay();
+    updateSummary();
+  };
+
+  btnFull.onclick = function(){
+    pushHistory();
+    state.maskCtx.save();
+    state.maskCtx.globalCompositeOperation = 'source-over';
+    state.maskCtx.fillStyle = 'rgba(255,255,255,1)';
+    state.maskCtx.fillRect(0, 0, state.refW, state.refH);
+    state.maskCtx.restore();
+    renderDisplay();
+    updateSummary();
+  };
+
+  btnInvert.onclick = function(){
+    pushHistory();
+    var data = state.maskCtx.getImageData(0, 0, state.refW, state.refH);
+    var d = data.data;
+    for(var i = 0; i < d.length; i += 4){
+      if(d[i+3] > 128){ d[i+3] = 0; }
+      else { d[i]=255; d[i+1]=255; d[i+2]=255; d[i+3]=255; }
+    }
+    state.maskCtx.putImageData(data, 0, 0);
+    renderDisplay();
+    updateSummary();
+  };
+
+  bgColorInput.addEventListener('input', function(){ state.bgColor = this.value; });
+
+  transparentBgInput.addEventListener('change', function(){
+    state.transparentBg = this.checked;
+    updateFormatNote();
+  });
+
+  smartCropInput.addEventListener('change', function(){
+    state.smartCrop = this.checked;
+    updateBboxInfo();
+    updateFormatNote();
+  });
+
+  function computeBoundingBox(){
+    if(!state.maskCtx) return null;
+    var W = state.refW, H = state.refH;
+    var data = state.maskCtx.getImageData(0, 0, W, H).data;
+    var minX = W, minY = H, maxX = -1, maxY = -1;
+    for(var y = 0; y < H; y++){
+      var rowOff = y * W * 4;
+      for(var x = 0; x < W; x++){
+        var a = data[rowOff + x * 4 + 3];
+        if(a > 20){
+          if(x < minX) minX = x;
+          if(x > maxX) maxX = x;
+          if(y < minY) minY = y;
+          if(y > maxY) maxY = y;
+        }
+      }
+    }
+    if(maxX < 0) return null;
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  }
+
+  function updateBboxInfo(){
+    if(!state.smartCrop){
+      bboxInfo.style.display = 'none';
+      state.bbox = null;
+      return;
+    }
+    var bbox = computeBoundingBox();
+    state.bbox = bbox;
+    if(!bbox){
+      bboxInfo.style.display = 'block';
+      bboxInfo.textContent = '警告：遮罩为空，请先在步骤2刷出内容。';
+      bboxInfo.style.color = '#ff453a';
+      bboxInfo.style.background = '#fff0f0';
+      return;
+    }
+    var scaleX = state.W / state.refW;
+    var scaleY = state.H / state.refH;
+    var outW = Math.floor(bbox.w * scaleX);
+    var outH = Math.floor(bbox.h * scaleY);
+    outW = outW - (outW % 2);
+    outH = outH - (outH % 2);
+    bboxInfo.style.display = 'block';
+    bboxInfo.style.color = '#856404';
+    bboxInfo.style.background = '#fff3cd';
+    bboxInfo.textContent = '智能裁切：输出尺寸 ' + outW + ' × ' + outH + '（原尺寸 ' + state.W + ' × ' + state.H + '）';
+  }
+
+  function updateFormatNote(){
+    var format, note;
+    if(state.transparentBg){
+      format = 'WebM';
+      note = '透明背景（输出 WebM，可在剪映/PR中直接叠加）';
+      formatNote.style.background = '#e8f2ff';
+      formatNote.style.color = '#0071e3';
+      formatNote.style.border = 'none';
+      bgColorInput.disabled = true;
+      bgColorInput.style.opacity = '0.4';
+    } else {
+      format = 'MP4';
+      if(state.smartCrop){
+        note = '智能裁切（输出 MP4，尺寸紧贴内容区域）';
+      } else {
+        note = '原尺寸（输出 MP4，形状外填底色）';
+      }
+      formatNote.style.background = '#f5f5f7';
+      formatNote.style.color = 'var(--text-main)';
+      formatNote.style.border = '1px solid var(--border-light)';
+      bgColorInput.disabled = false;
+      bgColorInput.style.opacity = '1';
+    }
+    formatNote.innerHTML = '当前输出格式：<b>' + format + '</b>（' + note + '）';
+  }
+
+  function updateSummary(){
+    var html = '<div class="kv"><span class="k">视频数量</span><span class="v">' + state.videoFiles.length + ' 个</span></div>';
+    html += '<div class="kv"><span class="k">参考尺寸</span><span class="v">' + (state.refW || 0) + '×' + (state.refH || 0) + '</span></div>';
+    html += '<div class="kv"><span class="k">输出时长</span><span class="v" style="color:var(--success)">与原视频完全一致</span></div>';
+    summaryBox.innerHTML = html;
+    updateFormatNote();
+    updateBboxInfo();
+  }
+
+  pickFolderBtn.onclick = async function(){
+    if(!window.showDirectoryPicker){
+      alert('浏览器不支持文件夹选择，将使用默认下载方式。');
+      return;
+    }
+    try{
+      var handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      state.dirHandle = handle;
+      folderName.innerHTML = '<span style="color:var(--success);">已选择：</span>' + handle.name;
+      folderBox.classList.add('ready');
+    }catch(err){
+      if(err.name !== 'AbortError') alert('选择失败：' + err.message);
+    }
+  };
+
+  async function processOneVideo(file, onProgress, idx, total){
+    var v = document.createElement('video');
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.style.position = 'fixed';
+    v.style.top = '0';
+    v.style.left = '0';
+    v.style.width = '4px';
+    v.style.height = '4px';
+    v.style.opacity = '0.01';
+    v.style.pointerEvents = 'none';
+    document.body.appendChild(v);
+    v.src = URL.createObjectURL(file);
+
+    await new Promise(function(res){
+      var ok = false;
+      function onCanPlay(){
+        if(ok) return;
+        ok = true;
+        v.removeEventListener('canplay', onCanPlay);
+        res();
+      }
+      v.addEventListener('canplay', onCanPlay);
+      v.addEventListener('error', function(){
+        if(ok) return;
+        ok = true;
+        res();
+      });
+      setTimeout(function(){ if(!ok){ ok = true; res(); } }, 8000);
+    });
+
+    var W = v.videoWidth;
+    var H = v.videoHeight;
+    var duration = v.duration;
+
+    var outX = 0, outY = 0, outW = W, outH = H;
+    if(state.smartCrop && state.bbox){
+      var scaleX = W / state.refW;
+      var scaleY = H / state.refH;
+      outX = Math.floor(state.bbox.x * scaleX);
+      outY = Math.floor(state.bbox.y * scaleY);
+      outW = Math.floor(state.bbox.w * scaleX);
+      outH = Math.floor(state.bbox.h * scaleY);
+      outW = Math.max(2, outW - (outW % 2));
+      outH = Math.max(2, outH - (outH % 2));
+      if(outX + outW > W) outW = W - outX - ((W - outX) % 2);
+      if(outY + outH > H) outH = H - outY - ((H - outY) % 2);
+    }
+
+    var outCanvas = document.createElement('canvas');
+    outCanvas.width = outW;
+    outCanvas.height = outH;
+    var outCtx = outCanvas.getContext('2d', { alpha: true });
+
+    var tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = W;
+    tmpCanvas.height = H;
+    var tmpCtx = tmpCanvas.getContext('2d', { alpha: true });
+
+    if(state.transparentBg){
+      outCtx.clearRect(0, 0, outW, outH);
+    } else {
+      outCtx.fillStyle = state.bgColor;
+      outCtx.fillRect(0, 0, outW, outH);
+    }
+
+    var mimeType = null;
+    if(state.transparentBg){
+      if(MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) mimeType = 'video/webm;codecs=vp9';
+      else if(MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) mimeType = 'video/webm;codecs=vp8';
+      else if(MediaRecorder.isTypeSupported('video/webm')) mimeType = 'video/webm';
+      else throw new Error('浏览器不支持 WebM 录制');
+    } else {
+      if(MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')) mimeType = 'video/mp4;codecs=avc1';
+      else if(MediaRecorder.isTypeSupported('video/mp4')) mimeType = 'video/mp4';
+      else throw new Error('浏览器不支持 MP4 录制');
+    }
+
+    var stream = outCanvas.captureStream(60);
+    var recorder = new MediaRecorder(stream, {
+      mimeType: mimeType,
+      videoBitsPerSecond: 30000000
+    });
+
+    var chunks = [];
+    recorder.ondataavailable = function(e){
+      if(e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
+    function drawFrame(){
+      tmpCtx.clearRect(0, 0, W, H);
+      tmpCtx.globalCompositeOperation = 'source-over';
+      tmpCtx.drawImage(v, 0, 0, W, H);
+      tmpCtx.globalCompositeOperation = 'destination-in';
+      tmpCtx.drawImage(state.maskCanvas, 0, 0, W, H);
+      tmpCtx.globalCompositeOperation = 'source-over';
+
+      if(state.transparentBg){
+        outCtx.clearRect(0, 0, outW, outH);
+      } else {
+        outCtx.fillStyle = state.bgColor;
+        outCtx.fillRect(0, 0, outW, outH);
+      }
+      outCtx.drawImage(tmpCanvas, outX, outY, outW, outH, 0, 0, outW, outH);
+    }
+
+    v.currentTime = 0;
+    await new Promise(function(res){
+      var done = false;
+      function finish(){ if(done) return; done = true; res(); }
+      v.addEventListener('seeked', function onS(){
+        v.removeEventListener('seeked', onS);
+        setTimeout(finish, 100);
+      });
+      setTimeout(finish, 600);
+    });
+
+    drawFrame();
+
+    return new Promise(async function(resolve){
+      recorder.start(1000);
+
+      try {
+        await v.play();
+      } catch(e){
+        try { recorder.stop(); } catch(err){}
+        try { v.removeAttribute('src'); v.load(); v.parentNode.removeChild(v); } catch(err){}
+        resolve(null);
+        return;
+      }
+
+      function renderLoop(){
+        if(v.paused || v.ended) return;
+        drawFrame();
+        var pct = Math.min(1, v.currentTime / duration);
+        onProgress(pct, v.currentTime, duration, idx, total);
+        requestAnimationFrame(renderLoop);
+      }
+
+      v.addEventListener('ended', function(){
+        drawFrame();
+        onProgress(1, duration, duration, idx, total);
+        setTimeout(function(){
+          try { recorder.stop(); } catch(e){}
+        }, 250);
+      });
+
+      recorder.onstop = function(){
+        try {
+          v.pause();
+          v.removeAttribute('src');
+          v.load();
+          if(v.parentNode) v.parentNode.removeChild(v);
+        } catch(e){}
+        resolve(new Blob(chunks, {type: mimeType}));
+      };
+
+      renderLoop();
+    });
+  }
+
+  generateBtn.onclick = async function(){
+    let miss = [];
+    if(state.videoFiles.length === 0) miss.push("上传视频");
+    if(!state.maskCanvas) miss.push("绘制遮罩");
+    
+    if(miss.length > 0){
+        $('mt_status4').textContent = "缺少步骤：" + miss.join("、");
+        $('mt_status4').style.color = 'var(--danger)';
+        return;
+    }
+
+    if(state.smartCrop){
+      var bbox = computeBoundingBox();
+      state.bbox = bbox;
+      if(!bbox){
+        alert('遮罩为空，请先在步骤2刷出内容。');
+        return;
+      }
+    }
+
+    enterPerformanceMode('正在初始化抠图引擎...');
+    
+    generateBtn.disabled = true;
+    resultBox.classList.add('hidden');
+    resultList.innerHTML = '';
+    state.outputs = [];
+
+    var totalVideos = state.videoFiles.length;
+
+    try{
+      for(var vi = 0; vi < totalVideos; vi++){
+        var file = state.videoFiles[vi];
+        var baseName = file.name.replace(/\.[^.]+$/, '');
+        var ext = state.transparentBg ? '.webm' : '.mp4';
+
+        var blob = await processOneVideo(file, function(pct, cur, total, idx, tot){
+          var globalPct = (idx + pct) / tot * 100;
+          updateProgressUI(globalPct, '正在批量抠图 (' + (idx+1) + '/' + tot + ')<br>当前处理: ' + cur.toFixed(1) + 's / ' + total.toFixed(1) + 's');
+        }, vi, totalVideos);
+
+        var outName = baseName + '_抠图' + ext;
+
+        if(state.dirHandle){
+          try {
+            var fh = await state.dirHandle.getFileHandle(outName, { create: true });
+            var writable = await fh.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          } catch(e){ console.warn('写入失败', e); }
+        }
+
+        state.outputs.push({ name: outName, blob: blob });
+      }
+
+      updateProgressUI(100, '全部完成！准备下载。');
+      
+      setTimeout(function(){
+        exitPerformanceMode();
+        if(state.outputs.length > 0){
+          resultVideo.src = URL.createObjectURL(state.outputs[0].blob);
+        }
+        renderResultList();
+        resultBox.classList.remove('hidden');
+        generateBtn.disabled = false;
+      }, 800);
+
+    }catch(err){
+      console.error(err);
+      updateProgressUI(0, '出错：' + err.message);
+      setTimeout(function(){
+        exitPerformanceMode();
+        generateBtn.disabled = false;
+      }, 3000);
+    }
+  };
+
+  function renderResultList(){
+    resultList.innerHTML = '';
+    for(var i=0;i<state.outputs.length;i++){
+      (function(idx){
+        var out = state.outputs[idx];
+        var item = document.createElement('div');
+        item.className = 'video-item';
+        var num = document.createElement('div');
+        num.className = 'num';
+        num.textContent = idx + 1;
+        item.appendChild(num);
+        var name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = out.name;
+        item.appendChild(name);
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+
+        var dl = document.createElement('button');
+        dl.className = 'btn tiny';
+        dl.textContent = '下载';
+        dl.onclick = function(){
+          var url = URL.createObjectURL(out.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = out.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+        };
+        actions.appendChild(dl);
+
+        var pv = document.createElement('button');
+        pv.className = 'btn tiny secondary';
+        pv.textContent = '预览';
+        pv.onclick = function(){
+          resultVideo.src = URL.createObjectURL(out.blob);
+        };
+        actions.appendChild(pv);
+
+        item.appendChild(actions);
+        resultList.appendChild(item);
+      })(i);
+    }
+  }
+
+  downloadBtn.onclick = function(){
+    for(var i=0;i<state.outputs.length;i++){
+      (function(out, idx){
+        setTimeout(function(){
+          var url = URL.createObjectURL(out.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = out.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+        }, idx * 500);
+      })(state.outputs[i], i);
+    }
+  };
+
+  updateUndoBtn();
+  updatePolygonActions();
+  updateFormatNote();
+})();
+</script>
+</body>
+</html>
+'@
+
+$html = $html.Replace('__MUXER_CODE__', $muxerJs)
+[System.IO.File]::WriteAllText($htmlPath, $html, (New-Object System.Text.UTF8Encoding($false)))
+
+Write-Host "`n完成！" -ForegroundColor Green
+Write-Host ("  主程序: {0}" -f $htmlPath)
+Write-Host "`n正在自动打开..."
+Start-Process $htmlPath
